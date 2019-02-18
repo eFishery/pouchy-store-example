@@ -72,10 +72,6 @@ export default class MemoryStore {
       }
     }
 
-    // reduces the database’s size by removing unused and old data
-    await this.dbLocal.compact();
-    await this.dbMeta.compact();
-
     // init data from PouchDB to memory
     const docs = await this.dbLocal.allDocs2();
     if (this.single) {
