@@ -9,6 +9,7 @@ class options: create getter fo these:
 - `this.isUseRemote` boolean: give false if you do not want to sync with remote db. default to true.
 - `this.single` string: give string if you want single doc, not list. this is the ID of the doc. default to undefined.
 - `this.dataDefault` optional: give array as default data, or object if single. default to `[]` if not single and `{}` if single.
+- `this.sortData` optional: function that will be called whenever there is any changes to `this.data`.
 */
 
 export default class MemoryStore {
@@ -113,6 +114,9 @@ export default class MemoryStore {
         } else {
           this.data.push(doc);
         }
+      }
+      if (typeof this.sortData === 'function') {
+        this.sortData(this.data);
       }
     }
   }
