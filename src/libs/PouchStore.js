@@ -57,8 +57,8 @@ export default class PouchStore {
     if (this.isInitialized) return;
 
     // init metadata
-    this.dataMeta = await this.dbMeta.getFailSafe('meta') || {
-      _id: 'meta',
+    this.dataMeta = await this.dbMeta.getFailSafe('_local/meta') || {
+      _id: '_local/meta',
       tsUpload: new Date(0).toJSON(),
       unuploadeds: {},
     };
@@ -80,6 +80,7 @@ export default class PouchStore {
       this.data = docs.find(doc => doc._id === this.single) || this.data;
     } else if (this.isUseData) {
       this.data = docs.filter(doc => !('deletedAt' in doc) || doc.deletedAt === null);
+      this.sortData(this.data);
     }
 
     this.isInitialized = true;
@@ -125,7 +126,7 @@ export default class PouchStore {
   }
 
   async updateMeta(payload) {
-    await this.dbMeta.update('meta', payload);
+    await this.dbMeta.update('_local/meta', payload);
     Object.assign(this.dataMeta, payload);
   }
 
