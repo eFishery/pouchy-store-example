@@ -57,7 +57,7 @@ export default class PouchStore {
     if (this.isInitialized) return;
 
     // init metadata
-    this.dataMeta = await this.dbMeta.get2('meta') || {
+    this.dataMeta = await this.dbMeta.getFailSafe('meta') || {
       _id: 'meta',
       tsUpload: new Date(0).toJSON(),
       unuploadeds: {},
@@ -75,7 +75,7 @@ export default class PouchStore {
     }
 
     // init data from PouchDB to memory
-    const docs = await this.dbLocal.allDocs2();
+    const docs = await this.dbLocal.getDocs();
     if (this.single) {
       this.data = docs.find(doc => doc._id === this.single) || this.data;
     } else if (this.isUseData) {
@@ -121,7 +121,7 @@ export default class PouchStore {
   }
 
   sortData(data) {
-    // do nothing
+    // do no sorting, override this method to sort
   }
 
   async updateMeta(payload) {
@@ -229,7 +229,7 @@ export default class PouchStore {
 
   async editItem(id, payload, user=null) {
     const now = new Date().toJSON();
-    const doc = await this.dbLocal.get2(id);
+    const doc = await this.dbLocal.getFailSafe(id);
     if (!doc) return;
 
     await this.setUnuploaded(id);
@@ -243,7 +243,7 @@ export default class PouchStore {
 
   async deleteItem(id, user=null) {
     const now = new Date().toJSON();
-    const doc = await this.dbLocal.get2(id);
+    const doc = await this.dbLocal.getFailSafe(id);
     if (!doc) return;
 
     const isRealDelete = doc.deletedAt || doc.createdAt > this.dataMeta.tsUpload;
@@ -263,7 +263,7 @@ export default class PouchStore {
   /* manipulation of single data (non-array) */
 
   async editSingle(payload) {
-    const doc = await this.dbLocal.get2(this.single) || { _id: this.single };
+    const doc = await this.dbLocal.getFailSafe(this.single) || { _id: this.single };
     await this.setUnuploaded(doc._id);
     await this.dbLocal.put({
       ...doc,
@@ -272,7 +272,7 @@ export default class PouchStore {
   }
 
   async deleteSingle() {
-    const doc = await this.dbLocal.get2(this.single) || { _id: this.single };
+    const doc = await this.dbLocal.getFailSafe(this.single) || { _id: this.single };
     const payload = {};
     if (doc._rev) {
       payload._rev = doc._rev;
@@ -324,7 +324,7 @@ export default class PouchStore {
 }
 
 class PouchDB extends IPouchDB {
-  async get2(id) {
+  async getFailSafe(id) {
     try {
       const doc = await this.get(id);
       return doc;
@@ -337,7 +337,7 @@ class PouchDB extends IPouchDB {
   }
 
   async update(id, obj) {
-    const doc = await this.get2(id) || { _id: id };
+    const doc = await this.getFailSafe(id) || { _id: id };
     Object.assign(doc, obj);
     const info = await this.put(doc);
     return info;
@@ -353,7 +353,7 @@ class PouchDB extends IPouchDB {
     return id;
   }
 
-  async allDocs2() {
+  async getDocs() {
     const result = await this.allDocs({
       include_docs: true,
     });
