@@ -6,7 +6,7 @@ export default () => {
       reject(new Error('No internet connection'));
     }, TIMEOUT*1000);
 
-    fetch(`/?${Math.random()}`).then(() => {
+    fetch(`/?${Math.random()}`, { method: 'HEAD' }).then(() => {
       clearTimeout(timer);
       resolve(true);
     }).catch(() => {
