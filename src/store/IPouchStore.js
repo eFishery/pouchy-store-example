@@ -171,6 +171,18 @@ export default class MemoryStore {
     return !this.dataMeta.unuploadeds[doc._id];
   }
 
+  async setUnuploaded(id, isUnuploaded=true) {
+    const unuploadeds = {
+      ...this.dataMeta.unuploadeds,
+    };
+    if (isUnuploaded) {
+      unuploadeds[id] = true;
+    } else {
+      delete unuploadeds[id];
+    }
+    await this.updateMeta({ unuploadeds });
+  }
+
   countUnuploadeds() {
     return Object.keys(this.dataMeta.unuploadeds || {}).length;
   }
@@ -193,13 +205,12 @@ export default class MemoryStore {
 
   async addItem(payload, user=null) {
     const id = this.dbLocal.createId();
+    await this.addItemWithId(id, payload, user);
+  }
+
+  async addItemWithId(id, payload, user=null) {
     const now = new Date().toJSON();
-    await this.updateMeta({
-      unuploadeds: {
-        ...this.dataMeta.unuploadeds,
-        [id]: true,
-      },
-    });
+    await this.setUnuploaded(id);
     await this.dbLocal.put({
       ...payload,
       _id: id,
@@ -214,12 +225,7 @@ export default class MemoryStore {
     const doc = await this.dbLocal.get2(id);
     if (!doc) return;
 
-    await this.updateMeta({
-      unuploadeds: {
-        ...this.dataMeta.unuploadeds,
-        [id]: true,
-      },
-    });
+    await this.setUnuploaded(id);
     await this.dbLocal.put({
       ...doc,
       ...payload,
@@ -235,20 +241,10 @@ export default class MemoryStore {
 
     const isRealDelete = doc.deletedAt || doc.createdAt > this.dataMeta.tsUpload;
     if (isRealDelete) {
-      delete this.dataMeta.unuploadeds[id];
-      await this.updateMeta({
-        unuploadeds: {
-          ...this.dataMeta.unuploadeds,
-        },
-      });
+      await this.setUnuploaded(id, false);
       await this.dbLocal.remove(doc);
     } else {
-      await this.updateMeta({
-        unuploadeds: {
-          ...this.dataMeta.unuploadeds,
-          [id]: true,
-        },
-      });
+      await this.setUnuploaded(id);
       await this.dbLocal.put({
         ...doc,
         deletedAt: now,
@@ -261,12 +257,7 @@ export default class MemoryStore {
 
   async editSingle(payload) {
     const doc = await this.dbLocal.get2(this.single) || { _id: this.single };
-    await this.updateMeta({
-      unuploadeds: {
-        ...this.dataMeta.unuploadeds,
-        [doc._id]: true,
-      },
-    });
+    await this.setUnuploaded(doc._id);
     await this.dbLocal.put({
       ...doc,
       ...payload,
@@ -280,12 +271,7 @@ export default class MemoryStore {
       payload._rev = doc._rev;
       Object.assign(payload, this.dataDefault || {});
     }
-    await this.updateMeta({
-      unuploadeds: {
-        ...this.dataMeta.unuploadeds,
-        [doc._id]: true,
-      },
-    });
+    await this.setUnuploaded(doc._id);
     await this.dbLocal.put({
       _id: doc._id,
       ...payload,
