@@ -1,6 +1,6 @@
-import IPouchStore from './IPouchStore';
+import PouchStore from '@/libs/PouchStore';
 
-class UserStore extends IPouchStore {
+class UserStore extends PouchStore {
   get name() {
     return 'user';
   }

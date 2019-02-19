@@ -1,4 +1,4 @@
-import PouchDB from '@/libs/PouchDB';
+import IPouchDB from 'pouchdb';
 import checkInternet from '@/libs/checkInternet';
 import config from '@/config';
 
@@ -9,10 +9,11 @@ class options: create getter fo these:
 - `this.isUseRemote` boolean: give false if you do not want to sync with remote db. default to true.
 - `this.single` string: give string if you want single doc, not list. this is the ID of the doc. default to undefined.
 - `this.dataDefault` optional: give array as default data, or object if single. default to `[]` if not single and `{}` if single.
-- `this.sortData` optional: function that will be called whenever there is any changes to `this.data`.
+- `this.sortData` optional: function that will be called whenever there is any changes to `this.data`. must be mutable to the data.
+
 */
 
-export default class MemoryStore {
+export default class PouchStore {
   constructor() {
     if (!this.name) {
       throw new Error('store must have name');
@@ -115,10 +116,12 @@ export default class MemoryStore {
           this.data.push(doc);
         }
       }
-      if (typeof this.sortData === 'function') {
-        this.sortData(this.data);
-      }
+      this.sortData(this.data);
     }
+  }
+
+  sortData(data) {
+    // do nothing
   }
 
   async updateMeta(payload) {
@@ -317,5 +320,44 @@ export default class MemoryStore {
         console.error(err);
       }
     }
+  }
+}
+
+class PouchDB extends IPouchDB {
+  async get2(id) {
+    try {
+      const doc = await this.get(id);
+      return doc;
+    } catch (err) {
+      if (err.status === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  async update(id, obj) {
+    const doc = await this.get2(id) || { _id: id };
+    Object.assign(doc, obj);
+    const info = await this.put(doc);
+    return info;
+  }
+
+  createId() {
+    let id = (new Date()).getTime().toString(16);
+    while (id.length < 32) {
+      id += Math.random().toString(16).split('.').pop();
+    }
+    id = id.substr(0, 32);
+    id = id.replace(/(\w{8})(\w{4})(\w{4})(\w{4})(\w{12})/, '$1-$2-$3-$4-$5');
+    return id;
+  }
+
+  async allDocs2() {
+    const result = await this.allDocs({
+      include_docs: true,
+    });
+    const docs = result.rows.map(row => row.doc);
+    return docs;
   }
 }
