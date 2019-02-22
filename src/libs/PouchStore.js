@@ -1,5 +1,8 @@
 import IPouchDB from 'pouchdb';
-import checkInternet from '@/libs/checkInternet';
+
+const ID_META_DOC = '_local/meta';
+const PREFIX_META_DB = 'meta_';
+const TIMEOUT_INTERNET_CHECK = 5; // seconds
 
 /*
 
@@ -34,7 +37,7 @@ export default class PouchStore {
     }
 
     this.dataMeta = { // metadata of this store
-      _id: '_local/meta',
+      _id: ID_META_DOC,
       tsUpload: new Date(0).toJSON(),
       unuploadeds: {},
     };
@@ -55,7 +58,7 @@ export default class PouchStore {
 
     // initalize the databases
     this.dbLocal = new PouchDB(this.name, { auto_compaction: true });
-    this.dbMeta = new PouchDB(`meta_${this.name}`, { auto_compaction: true });
+    this.dbMeta = new PouchDB(`${PREFIX_META_DB}${this.name}`, { auto_compaction: true });
     if (this.isUseRemote) {
       if (!this.urlRemote) {
         throw new Error(`store's urlRemote should not be ${this.urlRemote}`);
@@ -64,12 +67,12 @@ export default class PouchStore {
     }
 
     // init metadata
-    this.dataMeta = await this.dbMeta.getFailSafe('_local/meta') || this.dataMeta;
+    this.dataMeta = await this.dbMeta.getFailSafe(ID_META_DOC) || this.dataMeta;
 
     if (this.isUseRemote) {
       // sync data local-remote
       try {
-        await checkInternet();
+        await checkInternet(this.urlRemote);
         await this.dbLocal.replicate.from(this.dbRemote);
         await this.upload();
       } catch (err) {
@@ -141,7 +144,7 @@ export default class PouchStore {
   }
 
   async updateMeta(payload) {
-    await this.dbMeta.update('_local/meta', payload);
+    await this.dbMeta.update(ID_META_DOC, payload);
     Object.assign(this.dataMeta, payload);
   }
 
@@ -218,6 +221,8 @@ export default class PouchStore {
 
   async upload() {
     if (!this.isUseRemote) return;
+
+    await checkInternet(this.urlRemote);
 
     const unuploadeds = Object.keys(this.dataMeta.unuploadeds).map(_id => {
       return { _id };
@@ -345,7 +350,7 @@ export default class PouchStore {
   }
 }
 
-class PouchDB extends IPouchDB {
+export class PouchDB extends IPouchDB {
   async getFailSafe(id) {
     try {
       const doc = await this.get(id);
@@ -382,4 +387,19 @@ class PouchDB extends IPouchDB {
     const docs = result.rows.map(row => row.doc);
     return docs;
   }
+}
+
+export const checkInternet = (url) => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('No internet connection'));
+    }, TIMEOUT_INTERNET_CHECK*1000);
+
+    fetch(url, { method: 'HEAD' }).then(() => {
+      clearTimeout(timer);
+      resolve(true);
+    }).catch(() => {
+      reject(new Error('No internet connection'));
+    });
+  });
 }

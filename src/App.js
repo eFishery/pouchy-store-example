@@ -180,8 +180,13 @@ class Home extends BaseComponent {
 
   upload = async () => {
     console.log('uploading...');
-    await todosStore.upload();
-    console.log('upload done');
+    try {
+      await todosStore.upload();
+      console.log('upload done');
+    } catch (err) {
+      alert(err.message);
+      console.log('upload failed');
+    }
   }
 }
 
