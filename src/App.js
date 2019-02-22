@@ -1,83 +1,171 @@
 import React from 'react';
-import PouchDB from 'pouchdb';
-import generateReplicationId from './generateReplicationId';
 
-import logo from './logo.svg';
-import './App.css';
+import userStore from '@/store/user';
+import todosStore from '@/store/todos';
 
-class App extends React.PureComponent {
+// for playin in browser console
+window.userStore = userStore;
+window.todosStore = todosStore;
+
+class BaseComponent extends React.PureComponent {
+  rerender = () => {
+    this.setState({
+      _rerender: new Date(),
+    });
+  }
+}
+
+class App extends BaseComponent {
+  state = {
+    isInitialized: false,
+  }
+
+  render() {
+    if (!this.state.isInitialized) {
+      return null;
+    }
+
+    return (
+      userStore.data.email ? (
+        <Home />
+      ) : (
+        <Login />
+      )
+    );
+  }
+
+  async componentDidMount() {
+    await userStore.initialize();
+    this.setState({
+      isInitialized: true,
+    });
+
+    this.unsubUser = userStore.subscribe(this.rerender);
+  }
+
+  async componentDidUpdate() {
+    if (userStore.data.email && !todosStore.isInitialized) {
+      console.log('popup initialize all offline data...');
+      await todosStore.initialize();
+      console.log('popup done');
+    }
+  }
+
+  componentWillUnmount() {
+    this.unsubUser();
+  }
+}
+
+class Login extends BaseComponent {
+  state = {
+    email: '',
+  }
+
   render() {
     return (
-      <div className="App">
-        <header className="App-header">
-          <img src={logo} className="App-logo" alt="logo" />
-          <p>
-            Edit <code>src/App.js</code> and save to reload.
-          </p>
-          <a
-            className="App-link"
-            href="https://reactjs.org"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Learn React
-          </a>
-        </header>
+      <form onSubmit={this.submit}>
+        <h1>login</h1>
+        <p>
+          email <input type='text' value={this.state.email} onChange={this.setInput_email} />
+        </p>
+        <p>
+          <button>submit</button>
+        </p>
+      </form>
+    );
+  }
+
+  setInput_email = (event) => {
+    this.setState({
+      email: event.target.value,
+    });
+  }
+
+  submit = async (event) => {
+    event.preventDefault();
+    await userStore.editSingle({
+      email: this.state.email,
+    });
+  }
+}
+
+class Home extends BaseComponent {
+  state = {
+    input_text: '',
+  }
+
+  render() {
+    return (
+      <div>
+        <p>
+          halo {userStore.data.email} <button onClick={this.logout}>logout</button>
+        </p>
+
+        <h2>
+          todos: <button onClick={this.upload}>
+            {`upload (${todosStore.countUnuploadeds()})`}
+          </button>
+        </h2>
+        {
+          todosStore.data.map((todo, index) => (
+            <p key={todo._id}>
+              {index + 1}. {todo.text}
+              {
+                !todosStore.checkIsUploaded(todo) && (
+                  ` (belum upload)`
+                )
+              }
+              {` `}
+              <button onClick={() => this.deleteTodo(todo._id)}>
+                X
+              </button>
+            </p>
+          ))
+        }
+
+        <h2>add new todo</h2>
+        <form onSubmit={this.addTodo}>
+          <p><input type='text' value={this.state.input_text} onChange={this.setInput_text} /></p>
+          <p><button>submit</button></p>
+        </form>
       </div>
     );
   }
-}
 
-window.PouchDB = PouchDB;
-window.generateReplicationId = generateReplicationId;
-window.remoteUrl = 'http://localhost:5984/myremotedb';
-
-window.localDB = new PouchDB('mylocaldb');
-window.remoteDB = new PouchDB(window.remoteUrl);
-
-window.syncDB = async () => {
-  try {
-    const result = await window.localDB.sync(window.remoteDB);
-    console.log('syncDB', 'result', result);
-  } catch (err) {
-    console.log('syncDB', 'err', err);
+  componentDidMount() {
+    this.unsubTodos = todosStore.subscribe(this.rerender);
   }
-}
 
-window.watcher = new (class Watcher {
-  start() {
-    if (this.handler) {
-      this.stop();
-    }
-    this.handler = window.localDB.changes({
-      since: 'now',
-      live: true,
-      include_docs: true,
-    }).on('change', function (change) {
-      console.log('localDB.changes.change', change);
-    }).on('error', function (err) {
-      console.log('localDB.changes.error', err);
+  componentWillUnmount() {
+    this.unsubTodos();
+  }
+
+  setInput_text = (event) => {
+    this.setState({
+      input_text: event.target.value,
     });
   }
 
-  stop() {
-    if (this.handler) {
-      this.handler.cancel();
-      delete this.handler;
-    }
+  logout = () => {
+    userStore.deleteSingle();
   }
-})();
 
-window.getUnsynced = async () => {
-  try {
-    const replicationId = await generateReplicationId(window.localDB, window.remoteDB, {});
-    const replicationDoc = await window.localDB.get(replicationId);
-    const unsynceds = await window.localDB.changes({
-      since: replicationDoc.last_seq,
-    });
-    console.log(unsynceds);
-  } catch (err) {
-    console.log(err);
+  addTodo = async (event) => {
+    event.preventDefault();
+    await todosStore.addItem({
+      text: this.state.input_text,
+    }, userStore.data);
+    this.setState({ input_text: '' });
+  }
+
+  deleteTodo = async (id) => {
+    todosStore.deleteItem(id, userStore.data);
+  }
+
+  upload = async () => {
+    console.log('uploading...');
+    await todosStore.upload();
+    console.log('upload done');
   }
 }
 
