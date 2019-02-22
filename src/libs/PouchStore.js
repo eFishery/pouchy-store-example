@@ -7,6 +7,7 @@ import config from '@/config';
 class options: create getter fo these:
 - `this.isUseData` boolean: give false if you do not want to mirror db data to this.data. default to true.
 - `this.isUseRemote` boolean: give false if you do not want to sync with remote db. default to true.
+- `this.nameRemote` optional: give string for remote db name, default to `this.name`.
 - `this.single` string: give string if you want single doc, not list. this is the ID of the doc. default to undefined.
 - `this.dataDefault` optional: give array as default data, or object if single. default to `[]` if not single and `{}` if single.
 - `this.sortData` optional: function that will be called whenever there is any changes to `this.data`. must be mutable to the data.
@@ -26,12 +27,15 @@ export default class PouchStore {
     if (!('isUseRemote' in this)) {
       this.isUseRemote = true;
     }
+    if (!('nameRemote' in this)) {
+      this.nameRemote = this.name;
+    }
 
     // create the databases
     this.dbLocal = new PouchDB(this.name, { auto_compaction: true });
     this.dbMeta = new PouchDB(`${this.name}_meta`, { auto_compaction: true });
     if (this.isUseRemote) {
-      this.dbRemote = new PouchDB(`${config.couchDBUrl}${this.name}`);
+      this.dbRemote = new PouchDB(`${config.couchDBUrl}${this.nameRemote}`);
     }
 
     // initialize in-memory data
