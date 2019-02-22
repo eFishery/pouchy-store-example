@@ -5,12 +5,12 @@ class UserStore extends PouchStore {
     return 'user';
   }
 
-  get single() {
-    return 'user';
-  }
-
   get isUseRemote() {
     return false;
+  }
+
+  get single() {
+    return this.name;
   }
 }
 

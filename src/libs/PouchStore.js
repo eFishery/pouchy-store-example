@@ -1,13 +1,11 @@
 import IPouchDB from 'pouchdb';
 import checkInternet from '@/libs/checkInternet';
-import config from '@/config';
 
 /*
 
 class options: create getter fo these:
 - `this.isUseData` boolean: give false if you do not want to mirror db data to this.data. default to true.
 - `this.isUseRemote` boolean: give false if you do not want to sync with remote db. default to true.
-- `this.nameRemote` optional: give string for remote db name, default to `this.name`.
 - `this.single` string: give string if you want single doc, not list. this is the ID of the doc. default to undefined.
 - `this.dataDefault` optional: give array as default data, or object if single. default to `[]` if not single and `{}` if single.
 - `this.sortData` optional: function that will be called whenever there is any changes to `this.data`. must be mutable to the data.
@@ -16,10 +14,6 @@ class options: create getter fo these:
 
 export default class PouchStore {
   constructor() {
-    if (!this.name) {
-      throw new Error('store must have name');
-    }
-
     // set default options
     if (!('isUseData' in this)) {
       this.isUseData = true;
@@ -27,45 +21,50 @@ export default class PouchStore {
     if (!('isUseRemote' in this)) {
       this.isUseRemote = true;
     }
-    if (!('nameRemote' in this)) {
-      this.nameRemote = this.name;
-    }
 
-    // create the databases
-    this.dbLocal = new PouchDB(this.name, { auto_compaction: true });
-    this.dbMeta = new PouchDB(`${this.name}_meta`, { auto_compaction: true });
-    if (this.isUseRemote) {
-      this.dbRemote = new PouchDB(`${config.couchDBUrl}${this.nameRemote}`);
-    }
+    this.initializeProperties();
+  }
 
+  initializeProperties() {
     // initialize in-memory data
     if (this.single) {
       this.data = this.dataDefault || {};
     } else if (this.isUseData) {
       this.data = this.dataDefault || [];
-    } else {
-      Object.defineProperty(this, 'data', {
-        get: () => {
-          throw new Error('`this.data` is not available when `this.isUseData` does not return true');
-        },
-        set: () => {},
-      });
     }
 
-    this.dataMeta = {}; // metadata of this store
+    this.dataMeta = { // metadata of this store
+      _id: '_local/meta',
+      tsUpload: new Date(0).toJSON(),
+      unuploadeds: {},
+    };
     this.changeFromRemote = {}; // flag downloaded data from remote DB
     this.subscribers = []; // subscribers of data changes
+
+    this.dbLocal = null;
+    this.dbMeta = null;
+    this.dbRemote = null;
   }
 
   async initialize() {
     if (this.isInitialized) return;
 
+    if (!this.name) {
+      throw new Error('store must have name');
+    }
+
+    // initalize the databases
+    this.dbLocal = new PouchDB(this.name, { auto_compaction: true });
+    this.dbMeta = new PouchDB(`meta_${this.name}`, { auto_compaction: true });
+    if (this.isUseRemote) {
+      if (!this.urlRemote) {
+        throw new Error(`store's urlRemote should not be ${this.urlRemote}`);
+      }
+      this.dbRemote = new PouchDB(`${this.urlRemote}${this.name}`);
+    }
+
     // init metadata
-    this.dataMeta = await this.dbMeta.getFailSafe('_local/meta') || {
-      _id: '_local/meta',
-      tsUpload: new Date(0).toJSON(),
-      unuploadeds: {},
-    };
+    this.dataMeta = await this.dbMeta.getFailSafe('_local/meta') || this.dataMeta;
 
     if (this.isUseRemote) {
       // sync data local-remote
@@ -96,6 +95,18 @@ export default class PouchStore {
 
     this.watchRemote();
     this.watchLocal();
+  }
+
+  async deinitialize() {
+    this.unwatchLocal();
+    this.unwatchRemote();
+    await this.dbLocal.close();
+    await this.dbMeta.close();
+    if (this.dbRemote) {
+      await this.dbRemote.close();
+    }
+    this.initializeProperties();
+    this.isInitialized = false;
   }
 
   updateMemory(doc) {
@@ -139,7 +150,7 @@ export default class PouchStore {
   watchRemote() {
     if (!this.isUseRemote) return;
 
-    this.downloadHandler = this.dbLocal.replicate.from(this.dbRemote, {
+    this.handlerRemoteChange = this.dbLocal.replicate.from(this.dbRemote, {
       live: true,
       retry: true,
     }).on('change', change => {
@@ -154,13 +165,13 @@ export default class PouchStore {
   }
 
   unwatchRemote() {
-    if (this.downloadHandler) {
-      this.downloadHandler.cancel();
+    if (this.handlerRemoteChange) {
+      this.handlerRemoteChange.cancel();
     }
   }
 
   watchLocal() {
-    this.dbLocal.changes({
+    this.handlerLocalChange = this.dbLocal.changes({
       since: 'now',
       live: true,
       include_docs: true,
@@ -175,6 +186,12 @@ export default class PouchStore {
     }).on('error', err => {
       console.error(`${this.name}.changes`, 'error', err);
     });
+  }
+
+  unwatchLocal() {
+    if (this.handlerLocalChange) {
+      this.handlerLocalChange.cancel();
+    }
   }
 
   /* data upload (from local DB to remote DB) */

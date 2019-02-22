@@ -46,6 +46,7 @@ class App extends BaseComponent {
   async componentDidUpdate() {
     if (userStore.data.email && !todosStore.isInitialized) {
       console.log('popup initialize all offline data...');
+      todosStore.setName(userStore.data.id);
       await todosStore.initialize();
       console.log('popup done');
     }
@@ -77,13 +78,27 @@ class Login extends BaseComponent {
 
   setInput_email = (event) => {
     this.setState({
-      email: event.target.value,
+      email: (event.target.value || '').trim(),
     });
   }
 
   submit = async (event) => {
     event.preventDefault();
+
+    if (!this.state.email) {
+      alert('kudu email efishery');
+      return;
+    }
+    if (!this.state.email.endsWith('@efishery.com')) {
+      alert('kudu email efishery');
+      return;
+    }
+
+    let id = this.state.email;
+    id = id.split('@').shift().replace(/\W/g, '');
+
     await userStore.editSingle({
+      id,
       email: this.state.email,
     });
   }
@@ -146,8 +161,9 @@ class Home extends BaseComponent {
     });
   }
 
-  logout = () => {
-    userStore.deleteSingle();
+  logout = async () => {
+    await todosStore.deinitialize();
+    await userStore.deleteSingle();
   }
 
   addTodo = async (event) => {

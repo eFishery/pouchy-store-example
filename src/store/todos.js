@@ -1,8 +1,17 @@
 import PouchStore from '@/libs/PouchStore';
+import config from '@/config';
 
 class TodosStore extends PouchStore {
   get name() {
-    return 'todos';
+    return this._name;
+  }
+
+  setName(userId) {
+    this._name = `todos_${userId}`;
+  }
+
+  get urlRemote() {
+    return config.couchDBUrl;
   }
 
   sortData(data) {
