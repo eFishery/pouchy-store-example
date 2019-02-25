@@ -9,6 +9,7 @@ const TIMEOUT_INTERNET_CHECK = 5; // seconds
 class options: create getter fo these:
 - `this.isUseData` boolean: give false if you do not want to mirror db data to this.data. default to true.
 - `this.isUseRemote` boolean: give false if you do not want to sync with remote db. default to true.
+- `this.optionsRemote` optional: give object as options for remote db constructor.
 - `this.single` string: give string if you want single doc, not list. this is the ID of the doc. default to undefined.
 - `this.dataDefault` optional: give array as default data, or object if single. default to `[]` if not single and `{}` if single.
 - `this.sortData` optional: function that will be called whenever there is any changes to `this.data`. must be mutable to the data.
@@ -23,6 +24,9 @@ export default class PouchStore {
     }
     if (!('isUseRemote' in this)) {
       this.isUseRemote = true;
+    }
+    if (!('optionsRemote' in this)) {
+      this.optionsRemote = {};
     }
 
     this.initializeProperties();
@@ -63,7 +67,7 @@ export default class PouchStore {
       if (!this.urlRemote) {
         throw new Error(`store's urlRemote should not be ${this.urlRemote}`);
       }
-      this.dbRemote = new PouchDB(`${this.urlRemote}${this.name}`);
+      this.dbRemote = new PouchDB(`${this.urlRemote}${this.name}`, this.optionsRemote);
     }
 
     // init metadata
@@ -76,7 +80,7 @@ export default class PouchStore {
         await this.dbLocal.replicate.from(this.dbRemote);
         await this.upload();
       } catch (err) {
-        console.error(err);
+        console.log(err);
       }
     }
 
@@ -163,7 +167,7 @@ export default class PouchStore {
       }
       this.notifySubscribers(change.docs);
     }).on('error', err => {
-      console.error(`${this.name}.from`, 'error', err);
+      console.log(`${this.name}.from`, 'error', err);
     })
   }
 
@@ -187,7 +191,7 @@ export default class PouchStore {
         this.notifySubscribers([ doc ]);
       }
     }).on('error', err => {
-      console.error(`${this.name}.changes`, 'error', err);
+      console.log(`${this.name}.changes`, 'error', err);
     });
   }
 
@@ -344,7 +348,7 @@ export default class PouchStore {
       try {
         subscriber(docs);
       } catch (err) {
-        console.error(err);
+        console.log(err);
       }
     }
   }
@@ -399,6 +403,7 @@ export const checkInternet = (url) => {
       clearTimeout(timer);
       resolve(true);
     }).catch(() => {
+      clearTimeout(timer);
       reject(new Error('No internet connection'));
     });
   });

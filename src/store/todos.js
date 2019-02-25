@@ -14,6 +14,12 @@ class TodosStore extends PouchStore {
     return config.couchDBUrl;
   }
 
+  get optionsRemote() {
+    return {
+      auth: config.couchDBAuth,
+    };
+  }
+
   sortData(data) {
     data.sort((one, two) => {
       const oneTs = one.createdAt;
