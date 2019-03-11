@@ -121,6 +121,9 @@ class Home extends BaseComponent {
             {`upload (${todosStore.countUnuploadeds()})`}
           </button>
         </h2>
+        <pre>
+          last upload: {todosStore.dataMeta.tsUpload}
+        </pre>
         {
           todosStore.data.map((todo, index) => (
             <p key={todo._id}>

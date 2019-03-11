@@ -1,8 +1,11 @@
-import IPouchDB from 'pouchdb';
+import PouchDB from './PouchDB';
+import generateReplicationId from './generateReplicationId';
+import checkInternet from './checkInternet';
 
-const ID_META_DOC = '_local/meta';
+console.e = console.log;
+
+const ID_META_DOC = 'meta';
 const PREFIX_META_DB = 'meta_';
-const TIMEOUT_INTERNET_CHECK = 5; // seconds
 
 /*
 
@@ -10,6 +13,7 @@ class options: create getter fo these:
 - `this.isUseData` boolean: give false if you do not want to mirror db data to this.data. default to true.
 - `this.isUseRemote` boolean: give false if you do not want to sync with remote db. default to true.
 - `this.optionsRemote` optional: give object as options for remote db constructor.
+- `this.optionsLocal` optional
 - `this.single` string: give string if you want single doc, not list. this is the ID of the doc. default to undefined.
 - `this.dataDefault` optional: give array as default data, or object if single. default to `[]` if not single and `{}` if single.
 - `this.sortData` optional: function that will be called whenever there is any changes to `this.data`. must be mutable to the data.
@@ -24,6 +28,9 @@ export default class PouchStore {
     }
     if (!('isUseRemote' in this)) {
       this.isUseRemote = true;
+    }
+    if (!('optionsLocal' in this)) {
+      this.optionsLocal = {};
     }
     if (!('optionsRemote' in this)) {
       this.optionsRemote = {};
@@ -42,6 +49,7 @@ export default class PouchStore {
 
     this.dataMeta = { // metadata of this store
       _id: ID_META_DOC,
+      clientId: PouchDB.createId(),
       tsUpload: new Date(0).toJSON(),
       unuploadeds: {},
     };
@@ -61,17 +69,33 @@ export default class PouchStore {
     }
 
     // initalize the databases
-    this.dbLocal = new PouchDB(this.name, { auto_compaction: true });
-    this.dbMeta = new PouchDB(`${PREFIX_META_DB}${this.name}`, { auto_compaction: true });
+    this.dbLocal = new PouchDB(this.name, {
+      auto_compaction: true,
+      revs_limit: 2,
+      ...this.optionsLocal,
+    });
+    this.dbMeta = new PouchDB(`${PREFIX_META_DB}${this.name}`, {
+      auto_compaction: true,
+      revs_limit: 2,
+    });
     if (this.isUseRemote) {
       if (!this.urlRemote) {
         throw new Error(`store's urlRemote should not be ${this.urlRemote}`);
       }
-      this.dbRemote = new PouchDB(`${this.urlRemote}${this.name}`, this.optionsRemote);
+      this.dbRemote = new PouchDB(`${this.urlRemote}${this.name}`, {
+        ...this.optionsRemote,
+      });
     }
 
     // init metadata
-    this.dataMeta = await this.dbMeta.getFailSafe(ID_META_DOC) || this.dataMeta;
+    const dataMetaOld = await this.dbMeta.getFailSafe(ID_META_DOC);
+    if (dataMetaOld) {
+      this.dataMeta = dataMetaOld;
+    } else {
+      await this.persistMeta();
+      this.dataMeta = await this.dbMeta.getFailSafe(ID_META_DOC);
+    }
+    this.watchMeta();
 
     if (this.isUseRemote) {
       // sync data local-remote
@@ -80,8 +104,9 @@ export default class PouchStore {
         await this.dbLocal.replicate.from(this.dbRemote);
         await this.upload();
       } catch (err) {
-        console.log(err);
+        console.e(err);
       }
+      await this.initUnuploadeds();
     }
 
     // init data from PouchDB to memory
@@ -105,6 +130,7 @@ export default class PouchStore {
   }
 
   async deinitialize() {
+    this.unwatchMeta();
     this.unwatchLocal();
     this.unwatchRemote();
     await this.dbLocal.close();
@@ -147,9 +173,34 @@ export default class PouchStore {
     // do no sorting, override this method to sort
   }
 
-  async updateMeta(payload) {
-    await this.dbMeta.update(ID_META_DOC, payload);
-    Object.assign(this.dataMeta, payload);
+  async persistMeta() {
+    try {
+      await this.dbMeta.put(this.dataMeta);
+    } catch (err) {
+      console.e(err);
+    }
+  }
+
+  async initUnuploadeds() {
+    if (!this.isUseRemote) return;
+
+    try {
+      const replicationId = this.replicationId || await generateReplicationId(this.dbLocal, this.dbRemote, {});
+      const replicationDoc = await this.dbLocal.get(replicationId);
+      const unuploadeds = await this.dbLocal.changes({
+        since: replicationDoc.last_seq,
+        include_docs: true,
+      });
+      for (let result of unuploadeds.results) {
+        const doc = result.doc;
+        this.dataMeta.unuploadeds[doc._id] = true;
+      }
+      if (unuploadeds.results.length > 0) {
+        this.persistMeta();
+      }
+    } catch (err) {
+      console.e(err);
+    }
   }
 
   /* watch manager for local DB and remote DB */
@@ -167,7 +218,7 @@ export default class PouchStore {
       }
       this.notifySubscribers(change.docs);
     }).on('error', err => {
-      console.log(`${this.name}.from`, 'error', err);
+      console.e(`${this.name}.from`, 'error', err);
     })
   }
 
@@ -188,10 +239,17 @@ export default class PouchStore {
         delete this.changeFromRemote[doc._id];
       } else {
         this.updateMemory(doc);
+        if (doc._deleted) {
+          delete this.dataMeta.unuploadeds[doc._id];
+          this.persistMeta();
+        } else if (doc.dirtyBy && doc.dirtyBy.clientId === this.dataMeta.clientId) {
+          this.dataMeta.unuploadeds[doc._id] = true;
+          this.persistMeta();
+        }
         this.notifySubscribers([ doc ]);
       }
     }).on('error', err => {
-      console.log(`${this.name}.changes`, 'error', err);
+      console.e(`${this.name}.changes`, 'error', err);
     });
   }
 
@@ -201,26 +259,35 @@ export default class PouchStore {
     }
   }
 
+  watchMeta() {
+    this.handlerMetaChange = this.dbMeta.changes({
+      since: 'now',
+      live: true,
+      include_docs: true,
+    }).on('change', change => {
+      const doc = change.doc;
+      if (doc._id !== ID_META_DOC) return;
+      this.dataMeta = doc;
+    }).on('error', err => {
+      console.e(`${PREFIX_META_DB}${this.name}.changes`, 'error', err);
+    });
+  }
+
+  unwatchMeta() {
+    if (this.handlerMetaChange) {
+      this.handlerMetaChange.cancel();
+    }
+  }
+
   /* data upload (from local DB to remote DB) */
 
   checkIsUploaded(doc) {
-    return !this.dataMeta.unuploadeds[doc._id];
-  }
-
-  async setUnuploaded(id, isUnuploaded=true) {
-    const unuploadeds = {
-      ...this.dataMeta.unuploadeds,
-    };
-    if (isUnuploaded) {
-      unuploadeds[id] = true;
-    } else {
-      delete unuploadeds[id];
-    }
-    await this.updateMeta({ unuploadeds });
+    return !(doc._id in this.dataMeta.unuploadeds);
   }
 
   countUnuploadeds() {
-    return Object.keys(this.dataMeta.unuploadeds || {}).length;
+    const keys = Object.keys(this.dataMeta.unuploadeds);
+    return keys.length;
   }
 
   async upload() {
@@ -228,15 +295,14 @@ export default class PouchStore {
 
     await checkInternet(this.urlRemote);
 
-    const unuploadeds = Object.keys(this.dataMeta.unuploadeds).map(_id => {
-      return { _id };
-    });
     await this.dbLocal.replicate.to(this.dbRemote);
-    await this.updateMeta({
-      tsUpload: new Date().toJSON(),
-      unuploadeds: {},
-    });
-    this.notifySubscribers(unuploadeds);
+    const ids = Object.keys(this.dataMeta.unuploadeds);
+    for (let id of ids) {
+      delete this.dataMeta.unuploadeds[id];
+    }
+    this.dataMeta.tsUpload = new Date().toJSON();
+    this.persistMeta();
+    this.notifySubscribers([]);
   }
 
   /* manipulation of array data (non-single) */
@@ -246,56 +312,72 @@ export default class PouchStore {
     await this.addItemWithId(id, payload, user);
   }
 
-  async addItemWithId(id, payload, user=null) {
+  async addItemWithId(id, payload, user={}) {
     const now = new Date().toJSON();
-    await this.setUnuploaded(id);
+    const actionBy = this.createActionBy(user);
     await this.dbLocal.put({
       ...payload,
       _id: id,
+      dirtyAt: now,
+      dirtyBy: actionBy,
       createdAt: now,
-      createdBy: user,
+      createdBy: actionBy,
       deletedAt: null,
     });
   }
 
-  async editItem(id, payload, user=null) {
+  async editItem(id, payload, user={}) {
     const now = new Date().toJSON();
+    const actionBy = this.createActionBy(user);
     const doc = await this.dbLocal.getFailSafe(id);
     if (!doc) return;
 
-    await this.setUnuploaded(id);
     await this.dbLocal.put({
       ...doc,
       ...payload,
+      dirtyAt: now,
+      dirtyBy: actionBy,
       updatedAt: now,
-      updatedBy: user,
+      updatedBy: actionBy,
     });
   }
 
-  async deleteItem(id, user=null) {
+  async deleteItem(id, user={}) {
     const now = new Date().toJSON();
+    const actionBy = this.createActionBy(user);
     const doc = await this.dbLocal.getFailSafe(id);
     if (!doc) return;
 
     const isRealDelete = doc.deletedAt || doc.createdAt > this.dataMeta.tsUpload;
     if (isRealDelete) {
-      await this.setUnuploaded(id, false);
       await this.dbLocal.remove(doc);
     } else {
-      await this.setUnuploaded(id);
       await this.dbLocal.put({
         ...doc,
+        dirtyAt: now,
+        dirtyBy: actionBy,
         deletedAt: now,
-        deletedBy: user,
+        deletedBy: actionBy,
       });
     }
+  }
+
+  createActionBy(user) {
+    user = { ...user };
+    delete user._id;
+    delete user._rev;
+    for (let name of [ 'created', 'updated', 'deleted', 'dirty' ]) {
+      delete user[`${name}At`];
+      delete user[`${name}By`];
+    }
+    user.clientId = this.dataMeta.clientId;
+    return user;
   }
 
   /* manipulation of single data (non-array) */
 
   async editSingle(payload) {
     const doc = await this.dbLocal.getFailSafe(this.single) || { _id: this.single };
-    await this.setUnuploaded(doc._id);
     await this.dbLocal.put({
       ...doc,
       ...payload,
@@ -309,7 +391,6 @@ export default class PouchStore {
       payload._rev = doc._rev;
       Object.assign(payload, this.dataDefault || {});
     }
-    await this.setUnuploaded(doc._id);
     await this.dbLocal.put({
       _id: doc._id,
       ...payload,
@@ -348,63 +429,8 @@ export default class PouchStore {
       try {
         subscriber(docs);
       } catch (err) {
-        console.log(err);
+        console.e(err);
       }
     }
   }
-}
-
-export class PouchDB extends IPouchDB {
-  async getFailSafe(id) {
-    try {
-      const doc = await this.get(id);
-      return doc;
-    } catch (err) {
-      if (err.status === 404) {
-        return null;
-      }
-      throw err;
-    }
-  }
-
-  async update(id, obj) {
-    const doc = await this.getFailSafe(id) || { _id: id };
-    Object.assign(doc, obj);
-    const info = await this.put(doc);
-    return info;
-  }
-
-  createId() {
-    let id = (new Date()).getTime().toString(16);
-    while (id.length < 32) {
-      id += Math.random().toString(16).split('.').pop();
-    }
-    id = id.substr(0, 32);
-    id = id.replace(/(\w{8})(\w{4})(\w{4})(\w{4})(\w{12})/, '$1-$2-$3-$4-$5');
-    return id;
-  }
-
-  async getDocs() {
-    const result = await this.allDocs({
-      include_docs: true,
-    });
-    const docs = result.rows.map(row => row.doc);
-    return docs;
-  }
-}
-
-export const checkInternet = (url) => {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error('No internet connection'));
-    }, TIMEOUT_INTERNET_CHECK*1000);
-
-    fetch(url, { method: 'HEAD' }).then(() => {
-      clearTimeout(timer);
-      resolve(true);
-    }).catch(() => {
-      clearTimeout(timer);
-      reject(new Error('No internet connection'));
-    });
-  });
 }
