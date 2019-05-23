@@ -1,7 +1,7 @@
 export default {
-  couchDBUrl: 'http://54.169.133.88:5984/', // 'http://localhost:5984'
+  couchDBUrl: 'http://13.250.43.79:5984/', // 'http://localhost:5984'
   couchDBAuth: {
     username: 'admin',
-    password: 'adminefishery',
+    password: 'iniadmin',
   },
 };

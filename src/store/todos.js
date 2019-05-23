@@ -1,7 +1,7 @@
-import PouchStore from '@/libs/PouchStore';
+import PouchyStore from 'pouchy-store';
 import config from '@/config';
 
-class TodosStore extends PouchStore {
+class TodosStore extends PouchyStore {
   get name() {
     return this._name;
   }
