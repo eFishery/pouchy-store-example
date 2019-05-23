@@ -86,11 +86,11 @@ class Login extends BaseComponent {
     event.preventDefault();
 
     if (!this.state.email) {
-      alert('kudu email efishery');
+      alert('gunakan email @gmail');
       return;
     }
-    if (!this.state.email.endsWith('@efishery.com')) {
-      alert('kudu email efishery');
+    if (!this.state.email.endsWith('@gmail.com')) {
+      alert('gunakan email @gmail.com');
       return;
     }
 
