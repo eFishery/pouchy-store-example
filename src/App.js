@@ -1,5 +1,4 @@
 import React from "react";
-import "./App.css";
 
 import userStore from "@/store/user";
 import todosStore from "@/store/todos";
@@ -131,24 +130,30 @@ class Home extends BaseComponent {
       <div className="container">
         <div className="row">
           <div className="col col-md-8 offset-md-2">
-            <p>
-              halo {userStore.data.email}{" "}
+            <div className="d-flex align-items-center mt-3 mb-3">
+              <p className="m-0 mr-auto">Hi, {userStore.data.email} </p>
               <button onClick={this.logout} className="btn btn-secondary">
-                logout
+                Logout
               </button>
-            </p>
+            </div>
 
             <h2>
               Todos:{" "}
-              <button onClick={this.syncData} className="btn btn-warning">
+              <button
+                onClick={this.syncData}
+                className="btn btn-warning btn-sm"
+              >
                 {`Sync (${todosStore.countUnuploadeds()})`}
               </button>
             </h2>
-            <pre>last upload: {todosStore.dataMeta.tsUpload}</pre>
+            <pre>Last sync: {todosStore.dataMeta.tsUpload}</pre>
 
             <ul className="list-group">
               {todosStore.data.map((todo, index) => (
-                <li key={todo._id} className="list-group-item todo-item">
+                <li
+                  key={todo._id}
+                  className="d-flex align-items-center list-group-item"
+                >
                   <div className="custom-control custom-checkbox">
                     <input
                       type="checkbox"
@@ -162,13 +167,13 @@ class Home extends BaseComponent {
                       {" "}
                     </label>
                   </div>
-                  <p className="m-0">
+                  <p className="m-0 mr-auto">
                     {todo.text}
                     {!todosStore.checkIsUploaded(todo) && ` (belum upload)`}
                   </p>
                   <button
                     onClick={() => this.deleteTodo(todo._id)}
-                    className="btn btn-danger"
+                    className="btn btn-danger btn-sm"
                   >
                     X
                   </button>
@@ -179,6 +184,7 @@ class Home extends BaseComponent {
             <form className="form-inline mt-3" onSubmit={this.addTodo}>
               <input
                 className="form-control mr-sm-2"
+                style={{ flex: 1 }}
                 type="text"
                 placeholder="New todo"
                 value={this.state.input_text}
