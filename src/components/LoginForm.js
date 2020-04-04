@@ -2,7 +2,7 @@ import React from "react";
 
 import BaseComponent from "@/components/BaseComponent";
 
-class Login extends BaseComponent {
+class LoginForm extends BaseComponent {
   state = {
     email: ""
   };
@@ -51,4 +51,4 @@ class Login extends BaseComponent {
   }
 }
 
-export default Login;
+export default LoginForm;
