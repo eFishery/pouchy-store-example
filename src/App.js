@@ -1,19 +1,13 @@
 import React from "react";
 
+import BaseComponent from "@/components/BaseComponent";
+
 import userStore from "@/store/user";
 import todosStore from "@/store/todos";
 
 // for playin in browser console
 window.userStore = userStore;
 window.todosStore = todosStore;
-
-class BaseComponent extends React.PureComponent {
-  rerender = () => {
-    this.setState({
-      _rerender: new Date()
-    });
-  };
-}
 
 class App extends BaseComponent {
   state = {
@@ -66,7 +60,7 @@ class Login extends BaseComponent {
                 <h5 className="card-title">Login</h5>
                 <form onSubmit={this.submit}>
                   <div className="form-group">
-                    <label for="exampleInputEmail1">Email</label>
+                    <label forhtml="exampleInputEmail1">Email</label>
                     <input
                       type="text"
                       className="form-control"
@@ -162,7 +156,7 @@ class Home extends BaseComponent {
                     />
                     <label
                       className="custom-control-label"
-                      for={`checkbox_${todo._id}`}
+                      forhtml={`checkbox_${todo._id}`}
                     >
                       {" "}
                     </label>
