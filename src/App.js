@@ -150,16 +150,17 @@ class Home extends BaseComponent {
                       type="checkbox"
                       className="custom-control-input"
                       id={`checkbox_${todo._id}`}
+                      onClick={e => this.completeTodo(e, todo._id)}
                     />
                     <label
                       className="custom-control-label"
-                      forhtml={`checkbox_${todo._id}`}
+                      htmlFor={`checkbox_${todo._id}`}
                     >
                       {" "}
                     </label>
                   </div>
                   <p className="m-0 mr-auto">
-                    {todo.text}
+                    {todo.done ? <s>{todo.text}</s> : todo.text}
                     {!todosStore.checkIsUploaded(todo) && ` (belum upload)`}
                   </p>
                   <button
@@ -209,6 +210,16 @@ class Home extends BaseComponent {
 
   deleteTodo = async id => {
     todosStore.deleteItem(id, userStore.data);
+  };
+
+  completeTodo = async (e, id) => {
+    await todosStore.editItem(
+      id,
+      {
+        done: e.currentTarget.checked
+      },
+      userStore.data
+    );
   };
 
   syncData = async () => {
