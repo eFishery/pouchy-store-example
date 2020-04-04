@@ -1,6 +1,7 @@
 import React from "react";
 
 import BaseComponent from "@/components/BaseComponent";
+import NewTodoForm from "@/components/NewTodoForm";
 
 import userStore from "@/store/user";
 import todosStore from "@/store/todos";
@@ -115,10 +116,6 @@ class Login extends BaseComponent {
 }
 
 class Home extends BaseComponent {
-  state = {
-    input_text: ""
-  };
-
   render() {
     return (
       <div className="container">
@@ -175,19 +172,7 @@ class Home extends BaseComponent {
               ))}
             </ul>
 
-            <form className="form-inline mt-3" onSubmit={this.addTodo}>
-              <input
-                className="form-control mr-sm-2"
-                style={{ flex: 1 }}
-                type="text"
-                placeholder="New todo"
-                value={this.state.input_text}
-                onChange={this.setInput_text}
-              />
-              <button type="submit" className="btn btn-primary">
-                Submit
-              </button>
-            </form>
+            <NewTodoForm addTodo={this.addTodo} />
           </div>
         </div>
       </div>
@@ -213,15 +198,13 @@ class Home extends BaseComponent {
     await userStore.deleteSingle();
   };
 
-  addTodo = async event => {
-    event.preventDefault();
+  addTodo = async text => {
     await todosStore.addItem(
       {
-        text: this.state.input_text
+        text
       },
       userStore.data
     );
-    this.setState({ input_text: "" });
   };
 
   deleteTodo = async id => {
