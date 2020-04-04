@@ -1,7 +1,7 @@
 import React from "react";
 
+import LoginPage from "@/page/LoginPage";
 import BaseComponent from "@/components/BaseComponent";
-import LoginForm from "@/components/LoginForm";
 import TodoItem from "@/components/TodoItem";
 import NewTodoForm from "@/components/NewTodoForm";
 
@@ -22,7 +22,11 @@ class App extends BaseComponent {
       return null;
     }
 
-    return userStore.data.email ? <Home /> : <Login />;
+    return userStore.data.email ? (
+      <Home />
+    ) : (
+      <LoginPage userStore={userStore} />
+    );
   }
 
   async componentDidMount() {
@@ -46,38 +50,6 @@ class App extends BaseComponent {
   componentWillUnmount() {
     this.unsubUser();
   }
-}
-
-class Login extends BaseComponent {
-  render() {
-    return (
-      <div className="container">
-        <div className="row">
-          <div className="col col-md-4 offset-md-4">
-            <div className="card mt-4">
-              <div className="card-body">
-                <h5 className="card-title">Login</h5>
-
-                <LoginForm doLogin={this.doLogin} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  doLogin = async email => {
-    const id = email
-      .split("@")
-      .shift()
-      .replace(/\W/g, "");
-
-    await userStore.editSingle({
-      id,
-      email
-    });
-  };
 }
 
 class Home extends BaseComponent {
