@@ -1,6 +1,7 @@
 import React from "react";
 
 import BaseComponent from "@/components/BaseComponent";
+import LoginForm from "@/components/LoginForm";
 import TodoItem from "@/components/TodoItem";
 import NewTodoForm from "@/components/NewTodoForm";
 
@@ -48,10 +49,6 @@ class App extends BaseComponent {
 }
 
 class Login extends BaseComponent {
-  state = {
-    email: ""
-  };
-
   render() {
     return (
       <div className="container">
@@ -60,23 +57,8 @@ class Login extends BaseComponent {
             <div className="card mt-4">
               <div className="card-body">
                 <h5 className="card-title">Login</h5>
-                <form onSubmit={this.submit}>
-                  <div className="form-group">
-                    <label forhtml="exampleInputEmail1">Email</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={this.state.email}
-                      placeholder="email@gmail.com"
-                      onChange={this.setInput_email}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <button type="submit" class="btn btn-primary">
-                      Submit
-                    </button>
-                  </div>
-                </form>
+
+                <LoginForm doLogin={this.doLogin} />
               </div>
             </div>
           </div>
@@ -85,33 +67,15 @@ class Login extends BaseComponent {
     );
   }
 
-  setInput_email = event => {
-    this.setState({
-      email: (event.target.value || "").trim()
-    });
-  };
-
-  submit = async event => {
-    event.preventDefault();
-
-    if (!this.state.email) {
-      alert("gunakan email @gmail");
-      return;
-    }
-    if (!this.state.email.endsWith("@gmail.com")) {
-      alert("gunakan email @gmail.com");
-      return;
-    }
-
-    let id = this.state.email;
-    id = id
+  doLogin = async email => {
+    const id = email
       .split("@")
       .shift()
       .replace(/\W/g, "");
 
     await userStore.editSingle({
       id,
-      email: this.state.email
+      email
     });
   };
 }
@@ -166,12 +130,6 @@ class Home extends BaseComponent {
   componentWillUnmount() {
     this.unsubTodos();
   }
-
-  setInput_text = event => {
-    this.setState({
-      input_text: event.target.value
-    });
-  };
 
   logout = async () => {
     await todosStore.deinitialize();

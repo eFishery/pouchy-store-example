@@ -13,7 +13,7 @@ class NewTodoform extends BaseComponent {
     });
   };
 
-  addTodo = async event => {
+  handleSubmit = async event => {
     event.preventDefault();
     await this.props.addTodo(this.state.input_text);
     this.setState({ input_text: "" });
@@ -21,7 +21,7 @@ class NewTodoform extends BaseComponent {
 
   render() {
     return (
-      <form className="form-inline mt-3" onSubmit={this.addTodo}>
+      <form className="form-inline mt-3" onSubmit={this.handleSubmit}>
         <input
           className="form-control mr-sm-2"
           style={{ flex: 1 }}
