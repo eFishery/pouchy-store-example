@@ -1,6 +1,7 @@
 import React from "react";
 
 import BaseComponent from "@/components/BaseComponent";
+import TodoItem from "@/components/TodoItem";
 import NewTodoForm from "@/components/NewTodoForm";
 
 import userStore from "@/store/user";
@@ -141,35 +142,13 @@ class Home extends BaseComponent {
 
             <ul className="list-group">
               {todosStore.data.map((todo, index) => (
-                <li
+                <TodoItem
                   key={todo._id}
-                  className="d-flex align-items-center list-group-item"
-                >
-                  <div className="custom-control custom-checkbox">
-                    <input
-                      type="checkbox"
-                      className="custom-control-input"
-                      id={`checkbox_${todo._id}`}
-                      onClick={e => this.completeTodo(e, todo._id)}
-                    />
-                    <label
-                      className="custom-control-label"
-                      htmlFor={`checkbox_${todo._id}`}
-                    >
-                      {" "}
-                    </label>
-                  </div>
-                  <p className="m-0 mr-auto">
-                    {todo.done ? <s>{todo.text}</s> : todo.text}
-                    {!todosStore.checkIsUploaded(todo) && ` (belum upload)`}
-                  </p>
-                  <button
-                    onClick={() => this.deleteTodo(todo._id)}
-                    className="btn btn-danger btn-sm"
-                  >
-                    X
-                  </button>
-                </li>
+                  todo={todo}
+                  todosStore={todosStore}
+                  completeTodo={this.completeTodo}
+                  deleteTodo={this.deleteTodo}
+                />
               ))}
             </ul>
 
@@ -212,11 +191,11 @@ class Home extends BaseComponent {
     todosStore.deleteItem(id, userStore.data);
   };
 
-  completeTodo = async (e, id) => {
+  completeTodo = async (id, done) => {
     await todosStore.editItem(
       id,
       {
-        done: e.currentTarget.checked
+        done
       },
       userStore.data
     );
