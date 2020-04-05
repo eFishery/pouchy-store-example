@@ -3,9 +3,19 @@ import React from "react";
 import BaseComponent from "@/components/BaseComponent";
 
 class NewTodoform extends BaseComponent {
-  state = {
-    input_text: ""
-  };
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      input_text: this.props.text
+    };
+  }
+
+  componentWillReceiveProps(props, newprops) {
+    this.setState({
+      input_text: props.text
+    });
+  }
 
   handleInputChange = event => {
     this.setState({
@@ -15,7 +25,11 @@ class NewTodoform extends BaseComponent {
 
   handleSubmit = async event => {
     event.preventDefault();
-    await this.props.addTodo(this.state.input_text);
+    if (this.props.mode === "edit") {
+      await this.props.saveEditTodo(this.state.input_text);
+    } else {
+      await this.props.addTodo(this.state.input_text);
+    }
     this.setState({ input_text: "" });
   };
 
@@ -31,8 +45,16 @@ class NewTodoform extends BaseComponent {
           onChange={this.handleInputChange}
         />
         <button type="submit" className="btn btn-primary">
-          Submit
+          {this.props.mode === "edit" ? "Save" : "Submit"}
         </button>
+        {this.props.mode === "edit" ? (
+          <button
+            className="btn btn-danger ml-2"
+            onClick={this.props.closeEdit}
+          >
+            Cancel
+          </button>
+        ) : null}
       </form>
     );
   }

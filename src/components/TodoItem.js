@@ -44,6 +44,16 @@ class TodoItem extends BaseComponent {
             ` (belum upload)`}
         </p>
         <button
+          title="Edit"
+          onClick={() =>
+            this.props.startEditTodo(this.id, this.text, this.done)
+          }
+          className="btn btn-info btn-sm mr-2"
+        >
+          E
+        </button>
+        <button
+          title="Delete"
           onClick={() => this.props.deleteTodo(this.id)}
           className="btn btn-danger btn-sm"
         >

@@ -53,6 +53,11 @@ class App extends BaseComponent {
 }
 
 class Home extends BaseComponent {
+  state = {
+    mode: "new",
+    selectedTask: {}
+  };
+
   render() {
     return (
       <div className="container">
@@ -83,12 +88,19 @@ class Home extends BaseComponent {
                   todo={todo}
                   todosStore={todosStore}
                   completeTodo={this.completeTodo}
+                  startEditTodo={this.startEditTodo}
                   deleteTodo={this.deleteTodo}
                 />
               ))}
             </ul>
 
-            <NewTodoForm addTodo={this.addTodo} />
+            <NewTodoForm
+              mode={this.state.mode}
+              text={this.state.selectedTask.text || ""}
+              addTodo={this.addTodo}
+              saveEditTodo={this.saveEditTodo}
+              closeEdit={this.closeEdit}
+            />
           </div>
         </div>
       </div>
@@ -111,10 +123,42 @@ class Home extends BaseComponent {
   addTodo = async text => {
     await todosStore.addItem(
       {
-        text
+        text,
+        done: false
       },
       userStore.data
     );
+  };
+
+  startEditTodo = async (id, text, done) => {
+    this.setState({
+      mode: "edit",
+      selectedTask: {
+        id,
+        text,
+        done
+      }
+    });
+  };
+
+  closeEdit = () => {
+    this.setState({
+      mode: "new",
+      selectedTask: {}
+    });
+  };
+
+  saveEditTodo = async text => {
+    await todosStore.editItem(
+      this.state.selectedTask.id,
+      {
+        text,
+        done: this.state.selectedTask.done
+      },
+      userStore.data
+    );
+
+    this.closeEdit();
   };
 
   deleteTodo = async id => {
